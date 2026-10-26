@@ -1,0 +1,51 @@
+name: WorkBuddy 积分加油站 · 每日签到与派猫
+
+on:
+  schedule:
+    # GitHub Actions 的 cron 为 UTC。下面 01:30 UTC = 北京时间 09:30，每日一次。
+    # 如需调整时间，修改此行即可（格式：分 时 日 月 周）。
+    - cron: '30 1 * * *'
+  workflow_dispatch: {}   # 允许在 Actions 页面手动触发（便于测试验收）
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    # 超时保护：单次运行一般不超过 2 分钟
+    timeout-minutes: 5
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 解析 Python 解释器（不硬编码版本号）
+        id: py
+        shell: bash
+        run: |
+          PYBIN="$(command -v python3 || command -v python || true)"
+          if [ -z "$PYBIN" ]; then
+            echo "未找到 Python 解释器" >&2
+            exit 1
+          fi
+          echo "pybin=$PYBIN" >> "$GITHUB_OUTPUT"
+          echo "使用解释器: $PYBIN ($($PYBIN --version 2>&1))"
+
+      - name: 运行签到 + 派猫（同一次运行内完成）
+        id: run
+        shell: bash
+        env:
+          # 以下两项来自仓库 Secrets，明文不落仓库、不进日志
+          WORKBUDDY_REFRESH_TOKEN: ${{ secrets.WORKBUDDY_REFRESH_TOKEN }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+        run: |
+          set +e  # 显式捕获退出码，避免被 GitHub 默认 -e 中断导致无法上报真实结果
+          # 安全约束：绝不以 echo/print 输出 token；run.py 仅输出掩码
+          "${{ steps.py.outputs.pybin }}" scripts/run.py
+          rc=$?
+          set -e
+          echo "run_exit_code=$rc"
+          exit $rc
+
+      # 退出码语义：签到成功=0（整体成功）；签到失败=1（作业标红告警）。
+      # 猫猫部分失败不影响整体结论——run.py 在猫猫失败时仍返回 0，不会误判。

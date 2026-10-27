@@ -4,7 +4,11 @@ on:
   schedule:
     # GitHub Actions 的 cron 为 UTC。下面 01:30 UTC = 北京时间 09:30，每日一次。
     # 如需调整时间，修改此行即可（格式：分 时 日 月 周）。
+    # 注意：GitHub schedule 为 best-effort，高峰期可能延迟数十分钟甚至跳过。
     - cron: '30 1 * * *'
+    # 兜底：03:07 UTC = 北京 11:07 再试一次。run.py 幂等（已签到跳过、猫猫已派满跳过），
+    # 第一条成功时这条只是空转并推送一次状态，无副作用；第一条被跳过时由它补签。
+    - cron: '7 3 * * *'
   workflow_dispatch: {}   # 允许在 Actions 页面手动触发（便于测试验收）
 
 permissions:
